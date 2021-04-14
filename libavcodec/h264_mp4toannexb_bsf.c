@@ -166,6 +166,8 @@ static int h264_mp4toannexb_init(AVBSFContext *ctx)
     return 0;
 }
 
+// 1- 码流中有 sps/pps，不在添加
+// 2- 码流中没有 sps/pps，每个IDR 帧前面都添加
 static int h264_mp4toannexb_filter(AVBSFContext *ctx, AVPacket *opkt)
 {
     H264BSFContext *s = ctx->priv_data;
@@ -193,9 +195,11 @@ static int h264_mp4toannexb_filter(AVBSFContext *ctx, AVPacket *opkt)
 #define LOG_ONCE(...) \
     if (j) \
         av_log(__VA_ARGS__)
+
+    // 循环两次，第一次(j=0)先计数空间，第二次(j=1)实际拷贝
     for (int j = 0; j < 2; j++) {
         buf      = in->data;
-        new_idr  = s->new_idr;
+        new_idr  = s->new_idr;  	// 是否是一个新的IDR（考虑多slice 场景）
         sps_seen = s->idr_sps_seen;
         pps_seen = s->idr_pps_seen;
         out_size = 0;
@@ -239,16 +243,20 @@ static int h264_mp4toannexb_filter(AVBSFContext *ctx, AVPacket *opkt)
             /* If this is a new IDR picture following an IDR picture, reset the idr flag.
              * Just check first_mb_in_slice to be 0 as this is the simplest solution.
              * This could be checking idr_pic_id instead, but would complexify the parsing. */
+            // (buf[1] & 0x80) 检查是否为一个多slice 帧的第一个slice
+            // first_mb_in_slice = 0 时的指数哥伦布编码为 1，占 1bit，即最高bit
             if (!new_idr && unit_type == H264_NAL_IDR_SLICE && (buf[1] & 0x80))
                 new_idr = 1;
 
             /* prepend only to the first type 5 NAL unit of an IDR picture, if no sps/pps are already present */
+            // 正常逻辑，一般只考虑这个分支即可
             if (new_idr && unit_type == H264_NAL_IDR_SLICE && !sps_seen && !pps_seen) {
                 if (ctx->par_out->extradata)
                     count_or_copy(&out, &out_size, ctx->par_out->extradata,
                                   ctx->par_out->extradata_size, -1, j);
                 new_idr = 0;
             /* if only SPS has been seen, also insert PPS */
+            // 这是特殊逻辑，一般走不到
             } else if (new_idr && unit_type == H264_NAL_IDR_SLICE && sps_seen && !pps_seen) {
                 if (!s->pps_size) {
                     LOG_ONCE(ctx, AV_LOG_WARNING, "PPS not present in the stream, nor in AVCC, stream may be unreadable\n");
@@ -259,6 +267,7 @@ static int h264_mp4toannexb_filter(AVBSFContext *ctx, AVPacket *opkt)
 
             count_or_copy(&out, &out_size, buf, nal_size,
                           unit_type == H264_NAL_SPS || unit_type == H264_NAL_PPS, j);
+            // 如果码流中出现了 sps/pps，则 sps/pps=1, new_idr=1，永远没机会将 pps_seen 设置为0
             if (!new_idr && unit_type == H264_NAL_SLICE) {
                 new_idr  = 1;
                 sps_seen = 0;
