@@ -2582,6 +2582,7 @@ static void er_add_slice(H264SliceContext *sl,
     }
 }
 
+// 实际解码slice 代码
 static int decode_slice(struct AVCodecContext *avctx, void *arg)
 {
     H264SliceContext *sl = arg;
@@ -2617,6 +2618,7 @@ static int decode_slice(struct AVCodecContext *avctx, void *arg)
         }
     }
 
+    // CABAC 解码
     if (h->ps.pps->cabac) {
         /* realign */
         align_get_bits(&sl->gb);
@@ -2699,6 +2701,7 @@ static int decode_slice(struct AVCodecContext *avctx, void *arg)
                 goto finish;
             }
         }
+    // CAVLC 解码
     } else {
         for (;;) {
             int ret;

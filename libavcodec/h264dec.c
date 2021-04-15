@@ -604,7 +604,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
 
         err = 0;
         switch (nal->type) {
-        case H264_NAL_IDR_SLICE:
+        case H264_NAL_IDR_SLICE: // 没有break，复用 H264_NAL_SLICE 代码
             if ((nal->data[1] & 0xFC) == 0x98) {
                 av_log(h->avctx, AV_LOG_ERROR, "Invalid inter IDR frame\n");
                 h->next_outputed_poc = INT_MIN;
@@ -648,6 +648,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
                     goto end;
             }
             break;
+        // 不支持解码分片码流
         case H264_NAL_DPA:
         case H264_NAL_DPB:
         case H264_NAL_DPC:
@@ -974,6 +975,7 @@ static int h264_decode_frame(AVCodecContext *avctx, void *data,
     if (buf_size == 0)
         return send_next_delayed_frame(h, pict, got_frame, 0);
 
+    // 解析新的sidedata中的 extradata(avcc)
     if (av_packet_get_side_data(avpkt, AV_PKT_DATA_NEW_EXTRADATA, NULL)) {
         buffer_size_t side_size;
         uint8_t *side = av_packet_get_side_data(avpkt, AV_PKT_DATA_NEW_EXTRADATA, &side_size);
@@ -981,17 +983,19 @@ static int h264_decode_frame(AVCodecContext *avctx, void *data,
                                  &h->ps, &h->is_avc, &h->nal_length_size,
                                  avctx->err_recognition, avctx);
     }
+    // avcc 格式，AVPacket 中有avcc extradata
     if (h->is_avc && buf_size >= 9 && buf[0]==1 && buf[2]==0 && (buf[4]&0xFC)==0xFC) {
         if (is_avcc_extradata(buf, buf_size))
             return ff_h264_decode_extradata(buf, buf_size,
                                             &h->ps, &h->is_avc, &h->nal_length_size,
                                             avctx->err_recognition, avctx);
     }
-
+    // 解码NALU单元
     buf_index = decode_nal_units(h, buf, buf_size);
     if (buf_index < 0)
         return AVERROR_INVALIDDATA;
 
+    // 解码为空，或显示指明结束
     if (!h->cur_pic_ptr && h->nal_unit_type == H264_NAL_END_SEQUENCE) {
         av_assert0(buf_index <= buf_size);
         return send_next_delayed_frame(h, pict, got_frame, buf_index);

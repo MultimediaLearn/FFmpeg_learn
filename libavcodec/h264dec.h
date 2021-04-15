@@ -352,7 +352,7 @@ typedef struct H264Context {
     H264Picture DPB[H264_MAX_PICTURE_COUNT];
     H264Picture *cur_pic_ptr;
     H264Picture cur_pic;
-    H264Picture last_pic_for_ec;
+    H264Picture last_pic_for_ec; 		// 为了错误掩蔽 ERROR concealment
 
     H264SliceContext *slice_ctx;
     int            nb_slice_ctx;

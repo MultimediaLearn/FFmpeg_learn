@@ -468,6 +468,7 @@ int ff_h264_decode_extradata(const uint8_t *data, int size, H264ParamSets *ps,
     if (!data || size <= 0)
         return -1;
 
+    // 解码 avcc 格式的extradata
     if (data[0] == 1) {
         int i, cnt, nalsize;
         const uint8_t *p = data;
@@ -510,6 +511,8 @@ int ff_h264_decode_extradata(const uint8_t *data, int size, H264ParamSets *ps,
         }
         // Store right nal length size that will be used to parse all other nals
         *nal_length_size = (data[4] & 0x03) + 1;
+
+    // 解码 annexb 格式的extradata
     } else {
         *is_avc = 0;
         ret = decode_extradata_ps(data, size, ps, 0, logctx);
