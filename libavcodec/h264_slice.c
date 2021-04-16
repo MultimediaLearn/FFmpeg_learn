@@ -2085,6 +2085,7 @@ static int h264_slice_init(H264Context *h, H264SliceContext *sl,
     return 0;
 }
 
+// slice 组帧，解析slice 头
 int ff_h264_queue_decode_slice(H264Context *h, const H2645NAL *nal)
 {
     H264SliceContext *sl = h->slice_ctx + h->nb_slice_ctx_queued;

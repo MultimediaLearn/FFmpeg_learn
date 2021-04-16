@@ -552,6 +552,9 @@ static void debug_green_metadata(const H264SEIGreenMetaData *gm, void *logctx)
     }
 }
 
+/*
+ * 按照NALU 类型，解码NALU单元，得到解码后的slice
+ */
 static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
 {
     AVCodecContext *const avctx = h->avctx;
@@ -570,13 +573,19 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
         }
     }
 
+    // 支持mp4 中存放 annexb 格式
     if (h->nal_length_size == 4) {
+    	// 00 00 00 01，表示第一个NALU 的长度
+    	// buf[4] 是第一个NALU 内容
+    	// buf+5 是下一个NALU 长度的开始
         if (buf_size > 8 && AV_RB32(buf) == 1 && AV_RB32(buf+5) > (unsigned)buf_size) {
             h->is_avc = 0;
+        // 不是 00 00 00 01 开头，且开头4字节小于 buf 的长度
         }else if(buf_size > 3 && AV_RB32(buf) > 1 && AV_RB32(buf) <= (unsigned)buf_size)
             h->is_avc = 1;
     }
 
+    // 把packet 拆分成若干 NALU，并去除分隔符和转义字符，得到NALU 裸流
     ret = ff_h2645_packet_split(&h->pkt, buf, buf_size, avctx, h->is_avc, h->nal_length_size,
                                 avctx->codec_id, 0, 0);
     if (ret < 0) {
@@ -594,6 +603,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
         H2645NAL *nal = &h->pkt.nals[i];
         int max_slice_ctx, err;
 
+        // 如果指定了忽略非参考帧，则忽略
         if (avctx->skip_frame >= AVDISCARD_NONREF &&
             nal->ref_idc == 0 && nal->type != H264_NAL_SEI)
             continue;
@@ -611,6 +621,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
                 ret = -1;
                 goto end;
             }
+            // 多slice 只有IDR 第一个slice重置状态
             if(!idr_cleared) {
                 idr(h); // FIXME ensure we don't lose some frames if there is reordering
             }

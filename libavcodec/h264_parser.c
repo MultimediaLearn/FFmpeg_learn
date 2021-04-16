@@ -54,7 +54,7 @@ typedef struct H264ParseContext {
     H264POCContext poc;
     H264SEIContext sei;
     int is_avc;
-    int nal_length_size;
+    int nal_length_size; 	// avcc 格式指定的表示 NALU 头长度的字节数：1, 2 or 4
     int got_first;
     int picture_structure;
     uint8_t parse_history[6];

@@ -31,6 +31,7 @@
 #include "h264.h"
 #include "h2645_parse.h"
 
+// 抽离裸流，去除转义字符
 int ff_h2645_extract_rbsp(const uint8_t *src, int length,
                           H2645RBSP *rbsp, H2645NAL *nal, int small_padding)
 {
@@ -106,7 +107,7 @@ int ff_h2645_extract_rbsp(const uint8_t *src, int length,
             if (src[si + 2] == 3) { // escape
                 dst[di++] = 0;
                 dst[di++] = 0;
-                si       += 3;
+                si       += 3; 	// 跳过 escape 字段
 
                 if (nal->skipped_bytes_pos) {
                     nal->skipped_bytes++;
@@ -334,6 +335,7 @@ static int find_next_start_code(const uint8_t *buf, const uint8_t *next_avc)
     if (buf + 3 >= next_avc)
         return next_avc - buf;
 
+    // 00 00 00 01 属于 00 00 01 的特例
     while (buf + i + 3 < next_avc) {
         if (buf[i] == 0 && buf[i + 1] == 0 && buf[i + 2] == 1)
             break;
@@ -395,6 +397,7 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
 {
     GetByteContext bc;
     int consumed, ret = 0;
+    // is_nalff: 是否是 mp4 格式，如果是则可以确认当前是一个NALU 的开头；否则要搜索
     int next_avc = is_nalff ? 0 : length;
     int64_t padding = small_padding ? 0 : MAX_MBPAIR_SIZE;
 
@@ -411,8 +414,11 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
         int extract_length = 0;
         int skip_trailing_zeros = 1;
 
+        // 分包操作
+        // mp4 格式处理，len 存在NALU 前面4 字节
         if (bytestream2_tell(&bc) == next_avc) {
             int i = 0;
+            // 当前NALU 长度
             extract_length = get_nalsize(nal_length_size,
                                          bc.buffer, bytestream2_get_bytes_left(&bc), &i, logctx);
             if (extract_length < 0)
@@ -421,13 +427,14 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
             bytestream2_skip(&bc, nal_length_size);
 
             next_avc = bytestream2_tell(&bc) + extract_length;
+        // annexB 格式处理，搜索头
         } else {
             int buf_index;
 
             if (bytestream2_tell(&bc) > next_avc)
                 av_log(logctx, AV_LOG_WARNING, "Exceeded next NALFF position, re-syncing.\n");
 
-            /* search start code */
+            /* 搜索起始码 search start code */
             buf_index = find_next_start_code(bc.buffer, buf + next_avc);
 
             bytestream2_skip(&bc, buf_index);
@@ -452,6 +459,7 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
             }
         }
 
+        // nal 数组重新开辟
         if (pkt->nals_allocated < pkt->nb_nals + 1) {
             int new_size = pkt->nals_allocated + 1;
             void *tmp;
@@ -476,10 +484,12 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
         }
         nal = &pkt->nals[pkt->nb_nals];
 
+        // 分包，去除转义
         consumed = ff_h2645_extract_rbsp(bc.buffer, extract_length, &pkt->rbsp, nal, small_padding);
         if (consumed < 0)
             return consumed;
 
+        // mp4 格式下，实际NALU 长度和标识长度不一致
         if (is_nalff && (extract_length != consumed) && extract_length)
             av_log(logctx, AV_LOG_DEBUG,
                    "NALFF: Consumed only %d bytes instead of %d\n",
@@ -497,6 +507,7 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
         if (nal->size <= 0 || nal->size_bits <= 0)
             continue;
 
+        // 初始化比特流读取器
         ret = init_get_bits(&nal->gb, nal->data, nal->size_bits);
         if (ret < 0)
             return ret;

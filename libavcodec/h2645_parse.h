@@ -33,7 +33,7 @@ typedef struct H2645NAL {
     uint8_t *rbsp_buffer;
 
     int size;
-    const uint8_t *data;
+    const uint8_t *data; 	// nalu data, 没有nalu 头，直接是内容，如sps/pps, slice
 
     /**
      * Size, in bits, of just the data, excluding the stop bit and any trailing
@@ -79,11 +79,11 @@ typedef struct H2645RBSP {
 
 /* an input packet split into unescaped NAL units */
 typedef struct H2645Packet {
-    H2645NAL *nals;
+    H2645NAL *nals; 	// packet 拆分得到的NALU
     H2645RBSP rbsp;
-    int nb_nals;
-    int nals_allocated;
-    unsigned nal_buffer_size;
+    int nb_nals; 		// packet 拆分得到的NALU 个数
+    int nals_allocated;	// nals 缓存可以容纳的Nalu 个数
+    unsigned nal_buffer_size; 	// nalus 缓存字节大小
 } H2645Packet;
 
 /**
@@ -125,6 +125,7 @@ static inline int get_nalsize(int nal_length_size, const uint8_t *buf,
         return AVERROR(EAGAIN);
     }
 
+    // avcc 指定了size 的长度，不一定是 4
     for (i = 0; i < nal_length_size; i++)
         nalsize = ((unsigned)nalsize << 8) | buf[(*buf_index)++];
     if (nalsize <= 0 || nalsize > buf_size - *buf_index) {
