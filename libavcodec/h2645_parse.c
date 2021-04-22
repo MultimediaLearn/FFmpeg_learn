@@ -103,6 +103,12 @@ int ff_h2645_extract_rbsp(const uint8_t *src, int length,
         if (src[si + 2] > 3) {
             dst[di++] = src[si++];
             dst[di++] = src[si++];
+
+        // 标准规定，0x000000 0x000001 0x000002 都不会出现在NALU 内部
+        // 所以，只要出现就可以认为是 NALU 结束了
+        // 这里支持不对0x000000 转义【partial escaping】，忽略了 0x000000 做为新NALU 开始
+        // 0x000003 只会做为转义出现，03 要被忽略掉
+        // src[si + 2] == 1 or 2 or 3
         } else if (src[si] == 0 && src[si + 1] == 0 && src[si + 2] != 0) {
             if (src[si + 2] == 3) { // escape
                 dst[di++] = 0;
@@ -125,10 +131,14 @@ int ff_h2645_extract_rbsp(const uint8_t *src, int length,
                     if (nal->skipped_bytes_pos)
                         nal->skipped_bytes_pos[nal->skipped_bytes-1] = di - 1;
                 }
+                // 不会继续处理 0x03 后面的，等待下一次处理
                 continue;
+
+            // src[si + 2] == 1 or 2，新的NALU 开始
             } else // next start code
                 goto nsc;
         }
+        // else {} // 0x000000？？
 
         dst[di++] = src[si++];
     }
