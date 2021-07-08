@@ -86,6 +86,7 @@ int ff_hevc_decode_extradata(const uint8_t *data, int size, HEVCParamSets *ps,
 
     bytestream2_init(&gb, data, size);
 
+    // 使用3 个字节判定是否是hvcc 的做法是临时方案，data[0] 判定即可
     if (size > 3 && (data[0] || data[1] || data[2] > 1)) {
         /* It seems the extradata is encoded as hvcC format.
          * Temporarily, we support configurationVersion==0 until 14496-15 3rd

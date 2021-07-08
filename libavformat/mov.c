@@ -3654,7 +3654,7 @@ static void mov_fix_index(MOVContext *mov, AVStream *st)
                     edit_list_start_ctts_sample = 0;
                 }
             }
-
+            // editlist 导致丢帧
             if (curr_cts < edit_list_media_time || curr_cts >= (edit_list_duration + edit_list_media_time)) {
                 if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && st->codecpar->codec_id != AV_CODEC_ID_VORBIS &&
                     curr_cts < edit_list_media_time && curr_cts + frame_duration > edit_list_media_time &&
