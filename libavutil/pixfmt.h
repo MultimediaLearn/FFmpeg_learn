@@ -312,6 +312,11 @@ enum AVPixelFormat {
     AV_PIX_FMT_GBRAPF32BE, ///< IEEE-754 single precision planar GBRA 4:4:4:4, 128bpp, big-endian
     AV_PIX_FMT_GBRAPF32LE, ///< IEEE-754 single precision planar GBRA 4:4:4:4, 128bpp, little-endian
 
+    AV_PIX_FMT_RGBPF32LE,  ///< IEEE-754 single precision planar RGB 4:4:4,     96bpp, little-endian
+    AV_PIX_FMT_RGBAPF32LE, ///< IEEE-754 single precision planar RGBA 4:4:4:4, 128bpp, little-endian
+    AV_PIX_FMT_BGRPF32LE,  ///< IEEE-754 single precision planar BGR 4:4:4,     96bpp, little-endian
+    AV_PIX_FMT_BGRAPF32LE, ///< IEEE-754 single precision planar BGRA 4:4:4:4, 128bpp, little-endian
+
     /**
      * DRM-managed buffers exposed through PRIME buffer sharing.
      *
@@ -434,6 +439,11 @@ enum AVPixelFormat {
 
 #define AV_PIX_FMT_GBRPF32    AV_PIX_FMT_NE(GBRPF32BE,  GBRPF32LE)
 #define AV_PIX_FMT_GBRAPF32   AV_PIX_FMT_NE(GBRAPF32BE, GBRAPF32LE)
+
+#define AV_PIX_FMT_RGBPF32    AV_PIX_FMT_NE(RGBPF32BE,  RGBPF32LE)
+#define AV_PIX_FMT_RGBAPF32   AV_PIX_FMT_NE(RGBAPF32BE, RGBAPF32LE)
+#define AV_PIX_FMT_BGRPF32    AV_PIX_FMT_NE(BGRPF32BE,  BGRPF32LE)
+#define AV_PIX_FMT_BGRAPF32   AV_PIX_FMT_NE(BGRAPF32BE, BGRAPF32LE)
 
 #define AV_PIX_FMT_GRAYF32    AV_PIX_FMT_NE(GRAYF32BE, GRAYF32LE)
 

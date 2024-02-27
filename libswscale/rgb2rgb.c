@@ -144,6 +144,11 @@ av_cold void ff_sws_rgb2rgb_init(void)
 #endif
 }
 
+av_cold void ff_sws_rgb2rgb_init_hw(void)
+{
+    rgb2rgb_init_cuda();
+}
+
 void rgb32to24(const uint8_t *src, uint8_t *dst, int src_size)
 {
     int i, num_pixels = src_size >> 2;

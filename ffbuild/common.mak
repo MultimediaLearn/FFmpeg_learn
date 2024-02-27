@@ -124,8 +124,12 @@ $(BIN2CEXE): ffbuild/bin2c_host.o
 %.metallib.c: %.metallib $(BIN2CEXE)
 	$(BIN2C) $< $@ $(subst .,_,$(basename $(notdir $@)))
 
+%.o: %.cu
+	$(NVCC) $(NVCCFLAGS:-ptx=) -c $< -o $@
+
 %.ptx: %.cu $(SRC_PATH)/compat/cuda/cuda_runtime.h
 	$(COMPILE_NVCC)
+
 
 ifdef CONFIG_PTX_COMPRESSION
 %.ptx.gz: TAG = GZIP

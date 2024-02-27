@@ -19,6 +19,7 @@
  */
 
 #include "config.h"
+#include <asm-generic/errno-base.h>
 
 #define _DEFAULT_SOURCE
 #define _SVID_SOURCE // needed for MAP_ANONYMOUS
@@ -2022,6 +2023,42 @@ fail: // FIXME replace things by appropriate error codes
     return ret;
 }
 
+av_cold int sws_init_context_cuda(SwsContext *c, SwsFilter *srcFilter,
+                             SwsFilter *dstFilter)
+{
+    int i;
+    int usesVFilter, usesHFilter;
+    int unscaled;
+    SwsFilter dummyFilter = { NULL, NULL, NULL, NULL };
+    int srcW              = c->srcW;
+    int srcH              = c->srcH;
+    int dstW              = c->dstW;
+    int dstH              = c->dstH;
+    int dst_stride        = FFALIGN(dstW * sizeof(int16_t) + 66, 16); 
+    int flags, cpu_flags;
+    enum AVPixelFormat srcFormat = c->srcFormat;
+    enum AVPixelFormat dstFormat = c->dstFormat;
+    const AVPixFmtDescriptor *desc_src;
+    const AVPixFmtDescriptor *desc_dst;
+    int ret = 0;
+    enum AVPixelFormat tmpFmt;
+    static const float float_mult = 1.0f / 255.0f;
+    static AVOnce rgb2rgb_once = AV_ONCE_INIT;
+
+    unscaled = (srcW == dstW && srcH == dstH);
+
+    // set cuda stream to 0
+    c->cuda_stream = 0;
+
+    if (unscaled) {
+        ff_get_unscaled_swscale_cuda(c);
+        if (!c->convert_unscaled) return AVERROR(EINVAL);
+    } else {
+        ret = ff_sws_init_swscale_cuda(c);
+    }
+    return ret;
+}
+
 SwsContext *sws_alloc_set_opts(int srcW, int srcH, enum AVPixelFormat srcFormat,
                                int dstW, int dstH, enum AVPixelFormat dstFormat,
                                int flags, const double *param)
@@ -2059,6 +2096,20 @@ SwsContext *sws_getContext(int srcW, int srcH, enum AVPixelFormat srcFormat,
                            flags, param);
     if (!c)
         return NULL;
+
+    if (flags & SWS_HWACCEL_CUDA) {
+        #ifdef CONFIG_CVCUDA
+        if (sws_init_context_cuda(c, srcFilter, dstFilter) < 0) {
+            sws_freeContext_cuda(c);
+            av_log(c, AV_LOG_ERROR, "Error creating sws context for CUDA\n");
+            return NULL;
+        }
+        return c;
+        #else
+        av_log(c, AV_LOG_ERROR, "libswscale is not compiled with cvcuda support. Reconfigure with --enable-cvcuda\n");
+        return NULL;
+        #endif
+    }
 
     if (sws_init_context(c, srcFilter, dstFilter) < 0) {
         sws_freeContext(c);
@@ -2451,6 +2502,11 @@ void sws_freeContext(SwsContext *c)
     ff_free_filters(c);
 
     av_free(c);
+}
+
+void sws_freeContext_cuda(SwsContext *c)
+{
+    ff_sws_free_swscale_cuda(c);
 }
 
 struct SwsContext *sws_getCachedContext(struct SwsContext *context, int srcW,

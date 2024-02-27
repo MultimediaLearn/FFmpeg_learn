@@ -19,7 +19,9 @@ OBJS = alphablend.o                                     \
        utils.o                                          \
        version.o                                        \
        yuv2rgb.o                                        \
-       vscale.o                                         \
+       vscale.o                                         
+
+OBJS-$(CONFIG_CVCUDA)        += cuda/rgb2rgb_cuda.o cuda/rgb2rgb_cuda_kernel.o cuda/yuv2rgb_cuda.o cuda/swscale_cuda.o cuda/yuv2yuv_cuda.o
 
 # Objects duplicated from other libraries for shared builds
 SHLIBOBJS                    += log2_tab.o

@@ -1039,6 +1039,9 @@ static int scale_internal(SwsContext *c,
                                   dst2, dstStride2);
         if (scale_dst)
             dst2[0] += dstSliceY * dstStride2[0];
+    } else if (c->flags & SWS_HWACCEL_CUDA) {
+        ret = ff_swscale_cuda(c, src2, srcStride2, srcSliceY_internal, srcSliceH,
+                            dst2, dstStride2, dstSliceY, dstSliceH);
     } else {
         ret = swscale(c, src2, srcStride2, srcSliceY_internal, srcSliceH,
                       dst2, dstStride2, dstSliceY, dstSliceH);
@@ -1241,4 +1244,8 @@ void ff_sws_slice_worker(void *priv, int jobnr, int threadnr,
     }
 
     parent->slice_err[threadnr] = err;
+}
+
+void sws_setCudaStream(struct SwsContext *c, void* stream) {
+    c->cuda_stream = stream;
 }

@@ -4,7 +4,7 @@ include ffbuild/config.mak
 vpath %.c    $(SRC_PATH)
 vpath %.cpp  $(SRC_PATH)
 vpath %.h    $(SRC_PATH)
-vpath %.inc  $(SRC_PATH)
+# vpath %.inc  $(SRC_PATH)
 vpath %.m    $(SRC_PATH)
 vpath %.S    $(SRC_PATH)
 vpath %.asm  $(SRC_PATH)

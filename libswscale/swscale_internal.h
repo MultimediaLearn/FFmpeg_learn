@@ -36,6 +36,10 @@
 #include "libavutil/slicethread.h"
 #include "libavutil/ppc/util_altivec.h"
 
+#ifdef CONFIG_CVCUDA
+#include <cuda.h>
+#endif
+
 #define STR(s) AV_TOSTRING(s) // AV_STRINGIFY is too long
 
 #define YUVRGB_TABLE_HEADROOM 512
@@ -674,6 +678,20 @@ typedef struct SwsContext {
     unsigned int dst_slice_align;
     atomic_int   stride_unaligned_warned;
     atomic_int   data_unaligned_warned;
+
+    // CUDA acceleration
+    float *d_mat_yuv2rgbf;
+    float *d_mat_rgb2yuvf;
+    int   *d_mat_yuv2rgbi;
+    int   *d_mat_rgb2yuvi;
+    enum AVColorSpace cspace;
+    void *cv_resize_handle, *cv_layout, *cv_resize_tensor; // nvcv structs
+    int conversion_type; // rgb2yuv:0, yuv2rgb:1, yuv2yuv:2, rgb2rgb:3
+    void *cv_in_batch_handle, *cv_out_batch_handle;
+    void* cv_images[4], *cv_out_images[4];
+    #ifdef CONFIG_CVCUDA
+    CUstream cuda_stream;
+    #endif
 } SwsContext;
 //FIXME check init (where 0)
 
@@ -683,6 +701,7 @@ int ff_yuv2rgb_c_init_tables(SwsContext *c, const int inv_table[4],
                              int contrast, int saturation);
 void ff_yuv2rgb_init_tables_ppc(SwsContext *c, const int inv_table[4],
                                 int brightness, int contrast, int saturation);
+extern void ff_yuv2rgb_init_tables_cuda(SwsContext *c);
 
 void ff_updateMMXDitherTables(SwsContext *c, int dstY);
 
@@ -951,6 +970,9 @@ void ff_get_unscaled_swscale(SwsContext *c);
 void ff_get_unscaled_swscale_ppc(SwsContext *c);
 void ff_get_unscaled_swscale_arm(SwsContext *c);
 void ff_get_unscaled_swscale_aarch64(SwsContext *c);
+void ff_get_unscaled_swscale_cuda(SwsContext *c);
+
+int ff_sws_free_swscale_cuda(SwsContext *c);
 
 void ff_sws_init_scale(SwsContext *c);
 
@@ -968,6 +990,7 @@ void ff_sws_init_swscale_vsx(SwsContext *c);
 void ff_sws_init_swscale_x86(SwsContext *c);
 void ff_sws_init_swscale_aarch64(SwsContext *c);
 void ff_sws_init_swscale_arm(SwsContext *c);
+int ff_sws_init_swscale_cuda(SwsContext *c);
 
 void ff_hyscale_fast_c(SwsContext *c, int16_t *dst, int dstWidth,
                        const uint8_t *src, int srcW, int xInc);
@@ -983,6 +1006,10 @@ void ff_hyscale_fast_mmxext(SwsContext *c, int16_t *dst,
 void ff_hcscale_fast_mmxext(SwsContext *c, int16_t *dst1, int16_t *dst2,
                             int dstWidth, const uint8_t *src1,
                             const uint8_t *src2, int srcW, int xInc);
+int ff_swscale_cuda(SwsContext *c, const uint8_t *src[],
+                   int srcStride[], int srcSliceY, int srcSliceH,
+                   uint8_t *dst[], int dstStride[],
+                   int dstSliceY, int dstSliceH);
 
 /**
  * Allocate and return an SwsContext.

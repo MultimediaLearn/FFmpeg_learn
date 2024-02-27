@@ -91,6 +91,9 @@ const char *swscale_license(void);
 #define SWS_BITEXACT          0x80000
 #define SWS_ERROR_DIFFUSION  0x800000
 
+//HW acceleration selection
+#define SWS_HWACCEL_CUDA            0x1000000
+
 #define SWS_MAX_REDUCE_CUTOFF 0.002
 
 #define SWS_CS_ITU709         1
@@ -164,10 +167,25 @@ av_warn_unused_result
 int sws_init_context(struct SwsContext *sws_context, SwsFilter *srcFilter, SwsFilter *dstFilter);
 
 /**
+ * Initialize the swscaler context sws_context for CUDA acceleration.
+ *
+ * @return zero or positive value on success, a negative value on
+ * error
+ */
+av_warn_unused_result
+int sws_init_context_cuda(struct SwsContext *sws_context, SwsFilter *srcFilter, SwsFilter *dstFilter);
+
+/**
  * Free the swscaler context swsContext.
  * If swsContext is NULL, then does nothing.
  */
 void sws_freeContext(struct SwsContext *swsContext);
+
+/**
+ * Free the swscaler context swsContext for CUDA.
+ * If swsContext is NULL, then does nothing.
+ */
+void sws_freeContext_cuda(struct SwsContext *swsContext);
 
 /**
  * Allocate and return an SwsContext. You need it to perform
@@ -423,6 +441,11 @@ void sws_convertPalette8ToPacked24(const uint8_t *src, uint8_t *dst, int num_pix
  * @see av_opt_find().
  */
 const AVClass *sws_get_class(void);
+
+/**
+ * Set CUDA stream in the SwsContext.
+ */
+void sws_setCudaStream(struct SwsContext *c, void* stream);
 
 /**
  * @}

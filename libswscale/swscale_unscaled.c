@@ -19,6 +19,8 @@
  */
 
 #include <inttypes.h>
+#include <libavutil/log.h>
+#include <libavutil/pixfmt.h>
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -1965,11 +1967,95 @@ static int planarCopyWrapper(SwsContext *c, const uint8_t *src[],
     return srcSliceH;
 }
 
+extern void rgb24tobgr24_cuda(const uint8_t *src[], uint8_t *dst[], int srcStride[], int dstStride[], int width, int height, CUstream steam);
+
+static int rgbToRgbWrapperCuda(SwsContext *c, const uint8_t *src[],
+                              int srcStride[], int srcSliceY, int srcSliceH,
+                              uint8_t *dst[], int dstStride[]) 
+{
+    rgb24tobgr24_cuda(src, dst, srcStride, dstStride, c->srcW, c->srcH, c->cuda_stream);
+    return 0;
+}
+
+extern int yuv2rgb_cuda(const uint8_t *dpSrc[], int srcStride[],
+                        uint8_t *dpDst[], int dstStride[],
+                        int nWidth, int nHeight,
+                        int srcFormat, int dstFormat, CUstream stream);
+extern int rgb2yuv_cuda(const uint8_t *src[], int srcStride[],
+                uint8_t *dst[], int dstStride[],
+                int nWidth, int nHeight,
+                int srcFormat, int dstFormat, CUstream stream);
+extern int yuv2yuv_cuda(const uint8_t *src[], int src_stride[],
+                uint8_t *dst[], int dst_stride[],
+                int width, int height,
+                int srcFormat, int dstFormat, CUstream stream);
+static int yuvToRgbWrapperCuda(SwsContext *c, const uint8_t *src[],
+                              int srcStride[], int srcSliceY, int srcSliceH,
+                              uint8_t *dst[], int dstStride[])
+{
+    yuv2rgb_cuda(src, srcStride, dst, dstStride, c->srcW, c->srcH, c->srcFormat, c->dstFormat, c->cuda_stream);
+    return 0;
+}
+static int RgbToYuvWrapperCuda(SwsContext *c, const uint8_t *src[],
+                              int srcStride[], int srcSliceY, int srcSliceH,
+                              uint8_t *dst[], int dstStride[])
+{
+    rgb2yuv_cuda(src, srcStride, dst, dstStride, c->srcW, c->srcH, c->srcFormat, c->dstFormat, c->cuda_stream);
+    return 0;
+}
+static int YuvToYuvWrapperCuda(SwsContext *c, const uint8_t *src[],
+                              int srcStride[], int srcSliceY, int srcSliceH,
+                              uint8_t *dst[], int dstStride[])
+{
+    yuv2yuv_cuda(src, srcStride, dst, dstStride, c->srcW, c->srcH, c->srcFormat, c->dstFormat, c->cuda_stream);
+    return 0;
+}
+
+void ff_get_unscaled_swscale_cuda(SwsContext *c)
+{
+    const enum AVPixelFormat srcFormat = c->srcFormat;
+    const enum AVPixelFormat dstFormat = c->dstFormat;
+    // const int flags = c->flags;
+    // const int dstH = c->dstH;
+    // const int dstW = c->dstW;
+
+    // rgb2rgb unscaled conversion
+    if ((srcFormat == AV_PIX_FMT_RGB24 && dstFormat == AV_PIX_FMT_BGR24) ||
+        (srcFormat == AV_PIX_FMT_BGR24 && dstFormat == AV_PIX_FMT_RGB24)) {
+        c->convert_unscaled = rgbToRgbWrapperCuda;
+    }
+    // yuv2rgb unscaled conversion
+    else if ((srcFormat == AV_PIX_FMT_NV12   || srcFormat == AV_PIX_FMT_YUV420P) &&
+        (dstFormat == AV_PIX_FMT_RGB24  || dstFormat == AV_PIX_FMT_BGR24 ||
+         dstFormat == AV_PIX_FMT_RGBA   || dstFormat == AV_PIX_FMT_BGRA  ||
+         dstFormat == AV_PIX_FMT_RGBA64LE || dstFormat == AV_PIX_FMT_BGRA64LE ||
+         dstFormat == AV_PIX_FMT_RGBPF32LE || dstFormat == AV_PIX_FMT_RGBAPF32LE)) {
+        c->convert_unscaled = yuvToRgbWrapperCuda;
+    }
+
+    // rgb2yuv unscaled conversion
+    else if ((srcFormat == AV_PIX_FMT_RGB24  || srcFormat == AV_PIX_FMT_BGR24 ||
+         srcFormat == AV_PIX_FMT_RGBA   || srcFormat == AV_PIX_FMT_BGRA  ||
+         srcFormat == AV_PIX_FMT_RGBA64LE || srcFormat == AV_PIX_FMT_BGRA64LE) &&
+         (dstFormat == AV_PIX_FMT_NV12   || dstFormat == AV_PIX_FMT_YUV420P)) {
+        c->convert_unscaled = RgbToYuvWrapperCuda;
+    }
+    else if ((srcFormat == AV_PIX_FMT_NV12   || srcFormat == AV_PIX_FMT_YUV420P ||
+         srcFormat == AV_PIX_FMT_P010   || srcFormat == AV_PIX_FMT_P016) &&
+        (dstFormat == AV_PIX_FMT_NV12   || dstFormat == AV_PIX_FMT_YUV420P ||
+         dstFormat == AV_PIX_FMT_P010   || dstFormat == AV_PIX_FMT_P016)) {
+        c->convert_unscaled = YuvToYuvWrapperCuda;
+    }
+    else {
+        av_log(c, AV_LOG_ERROR, "Unsupported pixel format\n");
+        return;
+    }
+    ff_yuv2rgb_init_tables_cuda(c);
+}
 
 #define IS_DIFFERENT_ENDIANESS(src_fmt, dst_fmt, pix_fmt)          \
     ((src_fmt == pix_fmt ## BE && dst_fmt == pix_fmt ## LE) ||     \
      (src_fmt == pix_fmt ## LE && dst_fmt == pix_fmt ## BE))
-
 
 void ff_get_unscaled_swscale(SwsContext *c)
 {
